@@ -80,7 +80,7 @@ void inverseFFT(fftw_complex *corr_f, double &val_pos,
   // creo que el escalado no nos hace falta, porque las señales de entrada ya están
   // normalizadas y demeaned
   for(int i = fftsize/2-shift; i <= fftsize/2+shift; i++){  //PROBLEMA: empezamos el barrido en centro-shift y acabamos en centro+shift?
-    corr_t[i][0] = corr_t[i][0] / (double)fftsize;
+    //corr_t[i][0] = corr_t[i][0] / (double)fftsize;
     //ESTE ESCALADO PUEDE SER PROBLEMÁTICO -> PUEDE NO OBTENERSE LOS MISMOS
     //VALORES QUE SE OBTIENEN CON correlate.py
 
@@ -101,10 +101,10 @@ void inverseFFT(fftw_complex *corr_f, double &val_pos,
   //PROBLEMA: Al dividir entre el máximo, uno de los valores siempre será 1,
   //por lo que no obtendremos lo que deseamos
   av_max = (abs(pos)>abs(neg))? pos:abs(neg);
-
-  val_pos = pos;
+  //TODO: dividir entre la norma y el número de puntos de la señal en frecuencia
+  val_pos = pos/(double)fftsize;
   lag_pos = l_pos-shift;
-  val_neg = neg;
+  val_neg = neg/(double)fftsize;
   lag_neg = l_neg-shift;
 
   fftw_destroy_plan(plan);
