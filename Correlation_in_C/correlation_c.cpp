@@ -65,7 +65,7 @@ void inverseFFT(fftw_complex *corr_f, int fftsize, int shift, double &val_pos,
                                   int &lag_pos, double &val_neg, int &lag_neg){
 
   fftw_plan plan;
-  fftw_complex corr_t[fftsize];
+  fftw_complex* corr_t = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) *fftsize);
 
   plan = fftw_plan_dft_1d(fftsize, corr_f, corr_t, FFTW_BACKWARD, FFTW_ESTIMATE);
   fftw_execute(plan);
@@ -183,7 +183,8 @@ void ComputeNorms(fftw_complex *events, double *norms,int n_events, int event_le
 //Funcion que implementa la llamada propiamente dicha, haciendo uso del resto de funciones
 //arriba declaradas
 extern "C"{
-  void correlationCPP(fftw_complex *events, fftw_complex *events_reversed , int n_events, int event_length, int shift, int fftsize, double *xcorr_vals_pos, int *xcorr_lags_pos,
+  void correlationCPP(fftw_complex *events, fftw_complex *events_reversed , int n_events, int event_length,
+                      int shift, int fftsize, double *xcorr_vals_pos, int *xcorr_lags_pos,
                       double *xcorr_vals_neg, int *xcorr_lags_neg){ //añadir las señales de salida
     /*
     events:   conjunto de señales en el tiempo y con zero-appended
@@ -200,15 +201,21 @@ extern "C"{
     //Siempre se obtiene un tamaño de 2*shift+1. He de investigar pq
 
     double norms[n_events];
+
     ComputeNorms(events, norms, n_events, event_length, fftsize);
 
     ComputeFFT(events, events_reversed, signals_freq, signals_reversed_freq, n_events, fftsize);
 
-    fftw_complex xcorrij_f[fftsize];
+    fftw_complex* xcorrij_f = (fftw_complex*)fftw_malloc(sizeof(fftw_complex)*fftsize);
+
+    /*for(int i=0; i<fftsize; i++){
+      printf("Parte real %d: %f\n", i,events[i][0]);
+      printf("Parte imaginaria %d: %f\n", i,events[i][1]);
+    }*/
 
 
     for(int i=0; i<n_events; i++){
-      printf("Iteration %d of %d\n", i, n_events);
+      //printf("Iteration %d of %d\n", i, n_events);
       for(int j=i; j<n_events; j++){ //tengo que mirar como hace scipy la correlacion
 
         ElementWiseMultiplication(&signals_freq[i*fftsize], &signals_reversed_freq[j*fftsize], xcorrij_f, fftsize);
@@ -223,8 +230,6 @@ extern "C"{
     }
     fftw_cleanup();
     fftw_free(xcorrij_f);
-    fftw_free(signals_freq);
-    fftw_free(signals_reversed_freq);
   }
 }
 

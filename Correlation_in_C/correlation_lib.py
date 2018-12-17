@@ -9,7 +9,6 @@ import ctypes
 import platform
 import logging
 import sys
-import time
 import numpy as np
 
 def initialize_library():
@@ -30,8 +29,10 @@ def compute_correlation(events, shift):
     max = 0
     n_events = events.shape[0]
     for i in range(n_events):
-        if(events[0].data.shape[0] > max):
-            max = events[0].data.shape[0]
+        if(events[0].shape[0] > max):
+            max = events[0].shape[0]
+        #if(events[0].data.shape[0] > max):
+        #    max = events[0].data.shape[0]
     
     max_pad = 1 << (2*max+1).bit_length()
     
@@ -42,10 +43,13 @@ def compute_correlation(events, shift):
     
     #So far we have two all-zero matrices that has to be filled with the signals
     for i in range(n_events):
-        padded_events[i,:,0] = np.pad(events[i].data, (0,max_pad-events[i].data.shape[0]),'constant')
-        padded_reversed_events[i,:,0] = np.pad(np.flip(events[i].data), 
-                                        (0,max_pad-events[i].data.shape[0]), 'constant')
-        
+        #padded_events[i,:,0] = np.pad(events[i].data, (0,max_pad-events[i].data.shape[0]),'constant')
+        #padded_reversed_events[i,:,0] = np.pad(np.flip(events[i].data), 
+        #                                (0,max_pad-events[i].data.shape[0]), 'constant')
+        padded_events[i,:,0] = np.pad(events[i], (0,max_pad-events[i].shape[0]),'constant')
+        padded_reversed_events[i,:,0] = np.pad(np.flip(events[i]), 
+                                        (0,max_pad-events[i].shape[0]), 'constant')
+    
         
     xcm_pos = np.zeros((n_events, n_events), dtype=np.float64)
     xclags_pos = np.zeros((n_events, n_events), dtype=np.int)
@@ -55,14 +59,14 @@ def compute_correlation(events, shift):
     #void correlationCPP(fftw_complex *events, fftw_complex *events_reversed , 
     #int n_events, int event_length, int shift, int fftsize, double *xcorr_vals_pos, int *xcorr_lags_pos,
     #                  double *xcorr_vals_neg, int *xcorr_lags_neg)
-  
+    
     c_int_p = ctypes.POINTER(ctypes.c_int)
     c_double_p = ctypes.POINTER(ctypes.c_double)
     library.correlationCPP.restype = None
-    library.correlacionCPP.argtypes = [c_double_p, c_double_p, ctypes.c_int, ctypes.c_int,
+    library.correlationCPP.argtypes = [c_double_p, c_double_p, ctypes.c_int, ctypes.c_int,
                                        ctypes.c_int, ctypes.c_int, c_double_p, c_int_p, 
                                        c_double_p, c_int_p]
-    
+    print("monguer")
     library.correlationCPP(padded_events.ctypes.data_as(c_double_p),
                            padded_reversed_events.ctypes.data_as(c_double_p),
                            ctypes.c_int(n_events),
