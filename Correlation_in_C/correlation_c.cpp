@@ -14,7 +14,7 @@ using namespace std; //es necesario? ¿Por qué?
 */
 
 
-double normalize(fftw_complex* signal1_t, fftw_complex* signal2_t, int event_length){
+double normalize(fftw_complex* signal1_t, fftw_complex* signal2_t, int event_length){ //normalizes a pair of signals
   double pot_1 = 0.0, pot_2 = 0.0;
 
   for(int i=0; i<event_length; i++){
@@ -61,8 +61,8 @@ void ComputeFFT(fftw_complex* signals_t, fftw_complex* signals_t_reversed, fftw_
 //van indicados tanto el vector que contiene la señal en el tiempo como el de la
 //señal en frecuencia.
 
-void inverseFFT(fftw_complex *corr_f, double &val_pos,
-                int &lag_pos, double &val_neg, int &lag_neg, int fftsize, int shift){
+void inverseFFT(fftw_complex *corr_f, int fftsize, int shift, double &val_pos,
+                                  int &lag_pos, double &val_neg, int &lag_neg){
 
   fftw_plan plan;
   fftw_complex corr_t[fftsize];
@@ -168,54 +168,71 @@ void ElementWiseMultiplication(fftw_complex *signal_a, fftw_complex *signal_b, f
   }
 }
 
+void ComputeNorms(fftw_complex *events, double *norms,int n_events, int event_length, int fftsize){
+  double pot =0.0;
+  for(int i=0; i<n_events; i++){
+    pot=0.0;
+    for(int j=0; j<event_length; j++){
+      pot += events[i*fftsize+j][0] * events[i*fftsize+j][0];
+    }
+    norms[i] = sqrt(pot);
+  }
+}
+
 
 //Funcion que implementa la llamada propiamente dicha, haciendo uso del resto de funciones
 //arriba declaradas
-void correlationCPP(fftw_complex *events, fftw_complex *events_reversed , int n_events, int event_length, int shift, double *xcorr_vals_pos, int *xcorr_lags_pos,
-                    double *xcorr_vals_neg, int *xcorr_lags_neg){ //añadir las señales de salida
-  /*
-  events:   conjunto de señales en el tiempo y con zero-appended
-  events_reversed: conjunto de señales en el tiempo reversed y zero-appended
-  n_events: len(events)    -- numero de series temporales en events
-  length_event:            -- tamaño de los datos de una serie temporal
-  shift:       int         -- 2*shift+1 será el tamaño de la correlacion resultante (con ind=0 en el punto central)
-  */
+extern "C"{
+  void correlationCPP(fftw_complex *events, fftw_complex *events_reversed , int n_events, int event_length, int shift, int fftsize, double *xcorr_vals_pos, int *xcorr_lags_pos,
+                      double *xcorr_vals_neg, int *xcorr_lags_neg){ //añadir las señales de salida
+    /*
+    events:   conjunto de señales en el tiempo y con zero-appended
+    events_reversed: conjunto de señales en el tiempo reversed y zero-appended
+    n_events: len(events)    -- numero de series temporales en events
+    length_event:            -- tamaño de los datos de una serie temporal
+    shift:       int         -- 2*shift+1 será el tamaño de la correlacion resultante (con ind=0 en el punto central)
+    */
 
-  int fftsize = 2*n_events+1;
-  fftw_complex signals_freq[n_events*fftsize];
-  fftw_complex signals_reversed_freq[n_events*fftsize];
-  //En los resultados obtenidos con correlate
-  //Siempre se obtiene un tamaño de 2*shift+1. He de investigar pq
+    //int fftsize = 2*n_events+1;
+    fftw_complex signals_freq[n_events*fftsize];
+    fftw_complex signals_reversed_freq[n_events*fftsize];
+    //En los resultados obtenidos con correlate
+    //Siempre se obtiene un tamaño de 2*shift+1. He de investigar pq
 
-  ComputeFFT(events, events_reversed, signals_freq, signals_reversed_freq, n_events, fftsize);
+    double norms[n_events];
+    ComputeNorms(events, norms, n_events, event_length, fftsize);
 
-  fftw_complex xcorrij_f[fftsize];
+    ComputeFFT(events, events_reversed, signals_freq, signals_reversed_freq, n_events, fftsize);
+
+    fftw_complex xcorrij_f[fftsize];
 
 
-  for(int i=0; i<n_events; i++){
+    for(int i=0; i<n_events; i++){
+      printf("Iteration %d of %d\n", i, n_events);
+      for(int j=i; j<n_events; j++){ //tengo que mirar como hace scipy la correlacion
 
-    for(int j=i; j<n_events; j++){ //tengo que mirar como hace scipy la correlacion
+        ElementWiseMultiplication(&signals_freq[i*fftsize], &signals_reversed_freq[j*fftsize], xcorrij_f, fftsize);
 
-      ElementWiseMultiplication(&signals_freq[i*fftsize], &signals_reversed_freq[j*fftsize], xcorrij_f, fftsize);
-
-      //IMPLEMENTAR LA FFT INVERSA QUE SE APLICA DE UNO EN UNO --> MEMORY BOUND
-      inverseFFT(xcorrij_f, xcorr_vals_pos[i*n_events+j], xcorr_lags_pos[i*n_events+j],
-                                       xcorr_vals_neg[i*n_events+j], xcorr_lags_neg[i*n_events+j], fftsize, shift);
-
-      //sweep(xcorrij_t, xcorr_vals_pos[i*n_events+j], xcorr_lags_pos[i*n_events+j], xcorr_vals_neg[i*n_events+j], xcorr_lags_neg[i*n_events+j], fftsize);
+        //IMPLEMENTAR LA FFT INVERSA QUE SE APLICA DE UNO EN UNO --> MEMORY BOUND
+        inverseFFT(xcorrij_f, fftsize, shift, xcorr_vals_pos[i*n_events+j], xcorr_lags_pos[i*n_events+j],
+                                         xcorr_vals_neg[i*n_events+j], xcorr_lags_neg[i*n_events+j]);
+        //sweep(xcorrij_t, xcorr_vals_pos[i*n_events+j], xcorr_lags_pos[i*n_events+j], xcorr_vals_neg[i*n_events+j], xcorr_lags_neg[i*n_events+j], fftsize);
+        xcorr_vals_pos[i*n_events+j] /= (norms[i]*norms[j]);
+        xcorr_vals_neg[i*n_events+j] /= (norms[i]*norms[j]);
+      }
     }
+    fftw_cleanup();
+    fftw_free(xcorrij_f);
+    fftw_free(signals_freq);
+    fftw_free(signals_reversed_freq);
   }
-  fftw_cleanup();
-  fftw_free(xcorrij_f);
-  fftw_free(signals_freq);
-  fftw_free(signals_reversed_freq);
 }
 
 
 
 
-
-int main(){
+/**************************************************************************************************/
+/*int main(){
   int event_length = 10;
   int fftsize = 2*event_length+1;
   fftw_complex signal1_t[fftsize]; //relleno de ceros al final, hasta fftsize
@@ -293,7 +310,7 @@ int main(){
 
 
   return 0;
-}
+}*/
   /*int temp_size = 10; //tamaño de cada señal temporal (ya con el zero-appending)
   int fftsize = 2*temp_size+1; //tamaño de la fft resultante
   fftw_complex signals_t[fftsize]; //array linearizado, en este caso con sólo dos señales
