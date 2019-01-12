@@ -28,11 +28,12 @@ def compute_correlation(events, shift):
     library = initialize_library()
     max = 0
     n_events = events.shape[0]
+    n_events = 4
     for i in range(n_events):
-        if(events[0].shape[0] > max):
-            max = events[0].shape[0]
-        #if(events[0].data.shape[0] > max):
-        #    max = events[0].data.shape[0]
+        #if(events[0].shape[0] > max):
+        #    max = events[0].shape[0]
+        if(events[0].data.shape[0] > max):
+            max = events[0].data.shape[0]
     
     max_pad = 1 << (2*max+1).bit_length()
     
@@ -43,22 +44,19 @@ def compute_correlation(events, shift):
     
     #So far we have two all-zero matrices that has to be filled with the signals
     for i in range(n_events):
-        #padded_events[i,:,0] = np.pad(events[i].data, (0,max_pad-events[i].data.shape[0]),'constant')
-        #padded_reversed_events[i,:,0] = np.pad(np.flip(events[i].data), 
-        #                                (0,max_pad-events[i].data.shape[0]), 'constant')
-        padded_events[i,:,0] = np.pad(events[i], (0,max_pad-events[i].shape[0]),'constant')
-        padded_reversed_events[i,:,0] = np.pad(np.flip(events[i]), 
-                                        (0,max_pad-events[i].shape[0]), 'constant')
+        padded_events[i,:,0] = np.pad(events[i].data, (0,max_pad-events[i].data.shape[0]),'constant')
+        padded_reversed_events[i,:,0] = np.pad(np.flip(events[i].data), 
+                                        (0,max_pad-events[i].data.shape[0]), 'constant')
+        #padded_events[i,:,0] = np.pad(events[i], (0,max_pad-events[i].shape[0]),'constant')
+        #padded_reversed_events[i,:,0] = np.pad(np.flip(events[i]), 
+        #                                (0,max_pad-events[i].shape[0]), 'constant')
     
         
     xcm_pos = np.zeros((n_events, n_events), dtype=np.float64)
-    xclags_pos = np.zeros((n_events, n_events), dtype=np.int)
+    xclags_pos = np.zeros((n_events, n_events), dtype=np.int32)
     xcm_neg = np.zeros((n_events, n_events), dtype=np.float64)
-    xclags_neg = np.zeros((n_events, n_events), dtype=np.int)
+    xclags_neg = np.zeros((n_events, n_events), dtype=np.int32)
     
-    #void correlationCPP(fftw_complex *events, fftw_complex *events_reversed , 
-    #int n_events, int event_length, int shift, int fftsize, double *xcorr_vals_pos, int *xcorr_lags_pos,
-    #                  double *xcorr_vals_neg, int *xcorr_lags_neg)
     
     c_int_p = ctypes.POINTER(ctypes.c_int)
     c_double_p = ctypes.POINTER(ctypes.c_double)
@@ -66,7 +64,8 @@ def compute_correlation(events, shift):
     library.correlationCPP.argtypes = [c_double_p, c_double_p, ctypes.c_int, ctypes.c_int,
                                        ctypes.c_int, ctypes.c_int, c_double_p, c_int_p, 
                                        c_double_p, c_int_p]
-    print("monguer")
+    
+    print("Python: About to enter the C-function")
     library.correlationCPP(padded_events.ctypes.data_as(c_double_p),
                            padded_reversed_events.ctypes.data_as(c_double_p),
                            ctypes.c_int(n_events),
@@ -77,6 +76,6 @@ def compute_correlation(events, shift):
                            xclags_pos.ctypes.data_as(c_int_p),
                            xcm_neg.ctypes.data_as(c_double_p),
                            xclags_neg.ctypes.data_as(c_int_p))
-    
-    
-    return xcm_pos, xclags_pos, xcm_neg, xclags_neg
+    #print(xclags_pos[83][120])
+    returned_events = padded_events[:,:,0]
+    return returned_events, xcm_pos, xclags_pos, xcm_neg, xclags_neg

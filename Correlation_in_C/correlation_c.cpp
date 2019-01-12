@@ -38,6 +38,7 @@ void ComputeFFT(fftw_complex* signals_t, fftw_complex* signals_t_reversed, fftw_
     plan = fftw_plan_dft_1d(fftsize, &signals_t[i*fftsize], &signals_f[i*fftsize], FFTW_FORWARD, FFTW_ESTIMATE);
     //fftw_print_plan(plan);
     fftw_execute(plan);
+
     //AQUÍ TAMBIÉN HAY QUE HACER LA TRANSFORMADA DE LAS INVERSAS
     plan = fftw_plan_dft_1d(fftsize, &signals_t_reversed[i*fftsize], &signals_f_reversed[i*fftsize], FFTW_FORWARD, FFTW_ESTIMATE);
     fftw_execute(plan);
@@ -61,7 +62,7 @@ void ComputeFFT(fftw_complex* signals_t, fftw_complex* signals_t_reversed, fftw_
 //van indicados tanto el vector que contiene la señal en el tiempo como el de la
 //señal en frecuencia.
 
-void inverseFFT(fftw_complex *corr_f, int fftsize, int shift, double &val_pos,
+void inverseFFT(fftw_complex *corr_f, int event_length, int shift, int fftsize, double &val_pos,
                                   int &lag_pos, double &val_neg, int &lag_neg){
 
   fftw_plan plan;
@@ -71,6 +72,11 @@ void inverseFFT(fftw_complex *corr_f, int fftsize, int shift, double &val_pos,
   fftw_execute(plan);
   //FFTW_ESTIMATE OR FFTW_MEASURE no sé si al hacerlo todo en llamadas por separado
   //sería conveniente emplear uno u otro
+  /*for(int i=0; i<fftsize; i++){
+    printf("Parte real tiempo señal %d: %f\n", i, corr_t[i][0]);
+    printf("Parte imag tiempo señal %d: %f\n", i, corr_t[i][1]);
+  }
+  getchar();*/
 
   double pos=0.0, neg=0.0;
   int l_pos=0, l_neg=0;
@@ -79,22 +85,25 @@ void inverseFFT(fftw_complex *corr_f, int fftsize, int shift, double &val_pos,
 
   // creo que el escalado no nos hace falta, porque las señales de entrada ya están
   // normalizadas y demeaned
-  for(int i = fftsize/2-shift; i <= fftsize/2+shift; i++){  //PROBLEMA: empezamos el barrido en centro-shift y acabamos en centro+shift?
+  for(int i = event_length-shift; i < event_length+shift; i++){  //PROBLEMA: empezamos el barrido en centro-shift y acabamos en centro+shift?
     //corr_t[i][0] = corr_t[i][0] / (double)fftsize;
     //ESTE ESCALADO PUEDE SER PROBLEMÁTICO -> PUEDE NO OBTENERSE LOS MISMOS
     //VALORES QUE SE OBTIENEN CON correlate.py
 
     //TODO: HAY QUE INCLUIR LA OBTENCIÓN DE LAS CARACTERÍSTICAS AQUÍ DENTRO,
     //APROVECHANDO EL MISMO BUCLE
-    if(corr_t[i][0]> pos){
+    if(corr_t[i][0]>pos){
       pos = corr_t[i][0];
-      l_pos = i;
+      l_pos = i - event_length + 1;
     }
     else if(corr_t[i][0]<neg){
       neg = corr_t[i][0];
-      l_neg = i;
+      l_neg = i - event_length + 1;
     }
   }
+
+  /*printf("pos: %f\n", pos);
+  printf("neg: %f\n", neg);*/
 
   //Como finalmente hay que dividir entre el máximo valor absoluto, tiene
   //que ser bien el máximo más positivo o el mínimo más negativo
@@ -103,9 +112,9 @@ void inverseFFT(fftw_complex *corr_f, int fftsize, int shift, double &val_pos,
   av_max = (abs(pos)>abs(neg))? pos:abs(neg);
   //TODO: dividir entre la norma y el número de puntos de la señal en frecuencia
   val_pos = pos/(double)fftsize;
-  lag_pos = l_pos-shift;
+  lag_pos = l_pos;
   val_neg = neg/(double)fftsize;
-  lag_neg = l_neg-shift;
+  lag_neg = l_neg;
 
   fftw_destroy_plan(plan);
   fftw_free(corr_t);
@@ -118,7 +127,7 @@ void sweep(fftw_complex *xcorrij, double &val_pos, int &lag_pos, double &val_neg
   int l_pos=0, l_neg=0;
 
   for(int i=0; i<fftsize; i++){
-    if(xcorrij[i][0]> pos){
+    if(xcorrij[i][0]>pos){
       pos = xcorrij[i][0];
       l_pos = i;
     }
@@ -158,7 +167,6 @@ void reverseArray(fftw_complex *signal, int size){
     signal[size-i][0] = aux[0];
     signal[size-i][i] = aux[1];
   }
-  fftw_free(aux);
 }
 
 void ElementWiseMultiplication(fftw_complex *signal_a, fftw_complex *signal_b, fftw_complex *result, int fftsize){
@@ -194,24 +202,28 @@ extern "C"{
     shift:       int         -- 2*shift+1 será el tamaño de la correlacion resultante (con ind=0 en el punto central)
     */
 
-    //int fftsize = 2*n_events+1;
-    fftw_complex signals_freq[n_events*fftsize];
-    fftw_complex signals_reversed_freq[n_events*fftsize];
-    //En los resultados obtenidos con correlate
-    //Siempre se obtiene un tamaño de 2*shift+1. He de investigar pq
+    printf("C: Going to print the values received from Python:\n");
+    printf("C: n_events: %d\n", n_events);
+    printf("C: event_length: %d\n", event_length);
+    printf("C: shift: %d\n", shift);
+    printf("C: fftsize: %d\n\n", fftsize);
+
+    fftw_complex* signals_freq = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) *(n_events*fftsize));
+    fftw_complex* signals_reversed_freq = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) *(n_events*fftsize));
+    printf("C: He reservado memoria satisfactoriamente\n");
 
     double norms[n_events];
+    printf("C: He reservado la memoria de las normas satisfactoriamente\n");
 
     ComputeNorms(events, norms, n_events, event_length, fftsize);
+    printf("C: He computado las normas satisfactoriamente\n");
 
     ComputeFFT(events, events_reversed, signals_freq, signals_reversed_freq, n_events, fftsize);
+    printf("C: He computado las FFT satisfactoriamente\n");
+
 
     fftw_complex* xcorrij_f = (fftw_complex*)fftw_malloc(sizeof(fftw_complex)*fftsize);
-
-    /*for(int i=0; i<fftsize; i++){
-      printf("Parte real %d: %f\n", i,events[i][0]);
-      printf("Parte imaginaria %d: %f\n", i,events[i][1]);
-    }*/
+    printf("C: Comienza la extracción de características\n");
 
 
     for(int i=0; i<n_events; i++){
@@ -221,13 +233,14 @@ extern "C"{
         ElementWiseMultiplication(&signals_freq[i*fftsize], &signals_reversed_freq[j*fftsize], xcorrij_f, fftsize);
 
         //IMPLEMENTAR LA FFT INVERSA QUE SE APLICA DE UNO EN UNO --> MEMORY BOUND
-        inverseFFT(xcorrij_f, fftsize, shift, xcorr_vals_pos[i*n_events+j], xcorr_lags_pos[i*n_events+j],
+        inverseFFT(xcorrij_f, event_length, shift, fftsize, xcorr_vals_pos[i*n_events+j], xcorr_lags_pos[i*n_events+j],
                                          xcorr_vals_neg[i*n_events+j], xcorr_lags_neg[i*n_events+j]);
         //sweep(xcorrij_t, xcorr_vals_pos[i*n_events+j], xcorr_lags_pos[i*n_events+j], xcorr_vals_neg[i*n_events+j], xcorr_lags_neg[i*n_events+j], fftsize);
         xcorr_vals_pos[i*n_events+j] /= (norms[i]*norms[j]);
         xcorr_vals_neg[i*n_events+j] /= (norms[i]*norms[j]);
       }
     }
+
     fftw_cleanup();
     fftw_free(xcorrij_f);
   }
@@ -237,6 +250,80 @@ extern "C"{
 
 
 /**************************************************************************************************/
+/*int main(){
+  int event_length = 100;
+  int fftsize = 256;
+  fftw_complex signal1_t[fftsize]; //relleno de ceros al final, hasta fftsize
+  fftw_complex signal2_t[fftsize]; //ya invertido, con zeros al final
+
+  fftw_complex signal1_f[fftsize];
+  fftw_complex signal2_f[fftsize];
+
+  for(int i=0; i<fftsize; i++){
+    if(i<event_length){
+      signal1_t[i][0] =1;
+      signal2_t[i][0] =1;
+    }
+    else{
+      signal1_t[i][0] = 0.0;
+      signal2_t[i][0] = 0.0;
+    }
+
+    signal1_t[i][1] =0.0;
+    signal2_t[i][1] =0.0;
+
+    signal1_f[i][0] = 0.0;
+    signal2_f[i][0] = 0.0;
+
+    signal1_f[i][1] = 0.0;
+    signal2_f[i][1] = 0.0;
+  }
+  fftw_plan plan;
+
+  plan = fftw_plan_dft_1d(fftsize, signal1_t, signal1_f, FFTW_FORWARD, FFTW_ESTIMATE);
+  fftw_print_plan(plan);
+  printf("\n");
+  //Para hacer las pruebas ponemos FFTW_ESTIMATE, para hacer el definitivo probaremos con FFTW_MEASURE
+  fftw_execute(plan);
+
+  plan = fftw_plan_dft_1d(fftsize, signal2_t, signal2_f, FFTW_FORWARD, FFTW_ESTIMATE);
+  fftw_print_plan(plan);
+  printf("\n");
+
+  fftw_execute(plan);
+
+  for(int i=0; i<fftsize; i++){
+    printf("El valor %i es: %f\n", i,signal1_f[i][0]);
+  }
+  printf("LA SEGUNDA FFT:\n");
+  for(int i=0; i<fftsize; i++){
+    printf("El valor %i es: %f\n", i,signal2_f[i][0]);
+  }
+
+  //Ahora calculamos la multipllicación elemento a elemento y hallaremos la ifft
+
+  fftw_complex xcorrij_f[fftsize];
+  fftw_complex xcorrij_t[fftsize];
+
+  ElementWiseMultiplication(signal1_f, signal2_f, xcorrij_f, fftsize);
+
+  printf("LA SEÑAL DE CORRELACION EN LA FRECUENCIA:\n");
+  for(int i=0; i<fftsize; i++){
+    printf("El valor %i es: %f\n", i,xcorrij_f[i][0]);
+  }
+
+  plan = fftw_plan_dft_1d(fftsize, xcorrij_f, xcorrij_t, FFTW_BACKWARD, FFTW_ESTIMATE);
+  fftw_execute(plan);
+
+  double norm = normalize(signal1_t, signal2_t, event_length);
+  //multiplicamos por fftsize para hacer la normalización completa de la IFFT -> viene en la ecuación
+  norm *= fftsize;
+
+  printf("LA SEÑAL DE CORRELACION EN EL TIEMPO:\n");
+  for(int i=0; i<fftsize; i++){
+    printf("El valor %i es: %f\n", i,xcorrij_t[i][0]/norm);
+  }
+}*/
 /*int main(){
   int event_length = 10;
   int fftsize = 2*event_length+1;
