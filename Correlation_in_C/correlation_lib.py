@@ -45,7 +45,7 @@ def compute_correlation(events, shift):
     #So far we have two all-zero matrices that has to be filled with the signals
     for i in range(n_events):
         padded_events[i,:,0] = np.pad(events[i].data, (0,max_pad-events[i].data.shape[0]),'constant')
-        padded_reversed_events[i,:,0] = np.pad(np.flip(events[i].data), 
+        padded_reversed_events[i,:,0] = np.pad(np.flip(events[i].data,0), 
                                         (0,max_pad-events[i].data.shape[0]), 'constant')
         #padded_events[i,:,0] = np.pad(events[i], (0,max_pad-events[i].shape[0]),'constant')
         #padded_reversed_events[i,:,0] = np.pad(np.flip(events[i]), 
