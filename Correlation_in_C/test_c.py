@@ -21,9 +21,7 @@ tiempos = np.zeros(1)
 
 for i in range(1):
 	start = time.time()
-
 	xcm_pos, xclags_pos, xcm_neg, xclags_neg = compute_correlation(events,250)
-
 	diff_time = time.time() - start
 	print("Execution finished in: " + str(diff_time))
 	tiempos[i] = diff_time
