@@ -28,7 +28,7 @@ def compute_correlation(events, shift):
     library = initialize_library()
     max = 0
     n_events = events.shape[0]
-    n_events = 4
+    #n_events = 4
     for i in range(n_events):
         #if(events[0].shape[0] > max):
         #    max = events[0].shape[0]
@@ -76,6 +76,5 @@ def compute_correlation(events, shift):
                            xclags_pos.ctypes.data_as(c_int_p),
                            xcm_neg.ctypes.data_as(c_double_p),
                            xclags_neg.ctypes.data_as(c_int_p))
-    #print(xclags_pos[83][120])
-    returned_events = padded_events[:,:,0]
-    return returned_events, xcm_pos, xclags_pos, xcm_neg, xclags_neg
+
+    return xcm_pos, xclags_pos, xcm_neg, xclags_neg
