@@ -29,9 +29,9 @@ def initialize_library():
         if platform.system() == 'Darwin':
             library = ctypes.CDLL('./build/libcorrelation_af.dylib')
         elif platform.system() == 'Windows':
-            library = ctypes.CDLL('./build/libkmeans_arrayfire.dll')
+            library = ctypes.CDLL('./build/libcorrelation_af.dll')
         elif platform.system() == 'Linux':
-            library = ctypes.CDLL('./build/libkmeans_arrayfire.so')
+            library = ctypes.CDLL('./build/libcorrelation_af.so')
     except:
         logging.error(
             "va a ser que no figura")
