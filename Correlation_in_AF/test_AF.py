@@ -12,9 +12,9 @@ import time
 
 from correlationAF_lib import compute_correlation
 
-#events = np.load('events_eruption_v8.npy',fix_imports=True, encoding='latin1')
+events = np.load('events_eruption_v8.npy',fix_imports=True, encoding='latin1')
 
-events=np.ones((10, 100),dtype=np.float64)
+#events=np.ones((10, 100),dtype=np.float64)
 
 
 tiempos = np.zeros(1)
