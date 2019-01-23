@@ -36,3 +36,5 @@
 
 # Result files
 *.txt
+!CMakeLists.txt
+

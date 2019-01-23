@@ -22,14 +22,12 @@ tiempos = np.zeros(1)
 for i in range(1):
 	start = time.time()
 
-	padded_events, xcm_pos, xclags_pos, xcm_neg, xclags_neg = compute_correlation(events,1)
+	xcm_pos, xclags_pos, xcm_neg, xclags_neg = compute_correlation(events,1)
 
 	diff_time = time.time() - start
 	print("Execution finished in: " + str(diff_time))
 	tiempos[i] = diff_time
 print("Max: " + str(tiempos.max()) + " Mean: "+ str(tiempos.mean()) + " Min: "+str(tiempos.min()))
-
-np.savetxt('events.txt', padded_events, delimiter='\t', fmt='%6.3f')
 
 np.savetxt('xcm_v1_neg.txt',xcm_neg, delimiter='\t', fmt='%6.3f')
 

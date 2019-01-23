@@ -22,7 +22,7 @@ extern "C"{
      * shift : size of the zone inside the temporal correlation that will be checked
      * the rest are output arrays with values and lags, respectively
      **/
-
+    //af_print(tss); //No consigue hacerlo. Los datos no se pasan bien de Python a C
     printf("C: Just entered the AF-function\n");
     int length_event = static_cast<int>(tss.dims(0));
     int n_events = static_cast<int>(tss.dims(1));
@@ -30,6 +30,7 @@ extern "C"{
 
     af::array norms = af::matmul(matrixNorm(tss, 0).T(), matrixNorm(tss, 0));
     //af_print(norms);
+    printf("C: Finished computing the norms\n");
 
     af::array conv = af::constant(0, tss.dims(1), tss.dims(1), 2*tss.dims(0)-1, tss.type());
     af::array tss_flipped = af::flip(tss, 0);

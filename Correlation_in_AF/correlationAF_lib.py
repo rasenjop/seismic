@@ -43,8 +43,8 @@ def initialize_library():
 def compute_correlation(events, shift):
     library = initialize_library()
     max = 0
-    n_events = events.shape[0]
-    #n_events = 4
+    #n_events = events.shape[0]
+    n_events = 4
     for i in range(n_events):
         if(events[0].shape[0] > max):
             max = events[0].shape[0]
@@ -53,7 +53,7 @@ def compute_correlation(events, shift):
     
     #max_pad = 1 << (2*max+1).bit_length()
     
-    padded_events = np.ascontiguousarray(np.zeros((n_events,max,2),dtype=np.float64),
+    padded_events = np.ascontiguousarray(np.zeros((n_events,max),dtype=np.float64),
                                          dtype=np.float64)
     #padded_reversed_events = np.ascontiguousarray(np.zeros((n_events,max_pad,2),dtype=np.float64),
     #                                     dtype=np.float64)

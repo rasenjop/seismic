@@ -1,11 +1,11 @@
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.10)
 project(correlation_arrayfire)
 
 set(CMAKE_CXX_STANDARD 11)
 
 SET(CMAKE_CXX_FLAGS "-O3")
 
-FIND_PACKAGE(ArrayFire 3.5.1)
+FIND_PACKAGE(ArrayFire REQUIRED VERSION 3.5.1)
 
 add_library(correlation_af SHARED correlation_AF.cpp)
 
