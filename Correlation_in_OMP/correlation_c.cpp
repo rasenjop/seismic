@@ -4,6 +4,7 @@
 #include <vector>
 #include <fftw3.h>
 #include <cmath>
+#include <omp.h>
 
 using namespace std; //es necesario? ¿Por qué?
 
@@ -64,12 +65,18 @@ void ComputeFFT(fftw_complex* signals_t, fftw_complex* signals_t_reversed, fftw_
 
 void inverseFFT(fftw_complex *corr_f, int event_length, int shift, int fftsize, double &val_pos,
                                   int &lag_pos, double &val_neg, int &lag_neg){
+  int tid = omp_get_thread_num();
 
   fftw_plan plan;
+  //printf("Thread %d - inicio reserva de memoria IFFT\n");
   fftw_complex* corr_t = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) *fftsize);
 
+  //printf("Thread %d - inicio IFFT\n");
+  #pragma omp critical
   plan = fftw_plan_dft_1d(fftsize, corr_f, corr_t, FFTW_BACKWARD, FFTW_ESTIMATE);
+
   fftw_execute(plan);
+  //printf("Thread %d - fin de la IFFT\n");
   //FFTW_ESTIMATE OR FFTW_MEASURE no sé si al hacerlo todo en llamadas por separado
   //sería conveniente emplear uno u otro
   /*for(int i=0; i<fftsize; i++){
@@ -115,6 +122,7 @@ void inverseFFT(fftw_complex *corr_f, int event_length, int shift, int fftsize, 
   lag_pos = l_pos;
   val_neg = neg/(double)fftsize;
   lag_neg = l_neg;
+
 
   fftw_destroy_plan(plan);
   fftw_free(corr_t);
@@ -192,7 +200,7 @@ void ComputeNorms(fftw_complex *events, double *norms,int n_events, int event_le
 //arriba declaradas
 extern "C"{
   void correlationCPP(fftw_complex *events, fftw_complex *events_reversed , int n_events, int event_length,
-                      int shift, int fftsize, double *xcorr_vals_pos, int *xcorr_lags_pos,
+                      int shift, int fftsize, int num_threads, double *xcorr_vals_pos, int *xcorr_lags_pos,
                       double *xcorr_vals_neg, int *xcorr_lags_neg){ //añadir las señales de salida
     /*
     events:   conjunto de señales en el tiempo y con zero-appended
@@ -222,27 +230,40 @@ extern "C"{
     printf("C: He computado las FFT satisfactoriamente\n");
 
 
-    fftw_complex* xcorrij_f = (fftw_complex*)fftw_malloc(sizeof(fftw_complex)*fftsize);
     printf("C: Comienza la extracción de características\n");
 
+    omp_set_num_threads(num_threads);
+    #pragma omp parallel default(shared)
+    {
+      int tid = omp_get_thread_num();
+      fftw_complex* xcorrij_f = (fftw_complex*)fftw_malloc(sizeof(fftw_complex)*fftsize);
+      //printf("\tSoy un thread\n");
+      #pragma omp for //default(shared) private(xcorrij_f)
+      for(int i=0; i<n_events; i++){
+        //printf("Iteration %d of %d\n", i, n_events);
+        for(int j=i; j<n_events; j++){ //tengo que mirar como hace scipy la correlacion
+          //printf("Thread %d - iteration %d\n", tid, j);
+          ElementWiseMultiplication(&signals_freq[i*fftsize], &signals_reversed_freq[j*fftsize], xcorrij_f, fftsize);
 
-    for(int i=0; i<n_events; i++){
-      //printf("Iteration %d of %d\n", i, n_events);
-      for(int j=i; j<n_events; j++){ //tengo que mirar como hace scipy la correlacion
-
-        ElementWiseMultiplication(&signals_freq[i*fftsize], &signals_reversed_freq[j*fftsize], xcorrij_f, fftsize);
-
-        //IMPLEMENTAR LA FFT INVERSA QUE SE APLICA DE UNO EN UNO --> MEMORY BOUND
-        inverseFFT(xcorrij_f, event_length, shift, fftsize, xcorr_vals_pos[i*n_events+j], xcorr_lags_pos[i*n_events+j],
-                                         xcorr_vals_neg[i*n_events+j], xcorr_lags_neg[i*n_events+j]);
-        //sweep(xcorrij_t, xcorr_vals_pos[i*n_events+j], xcorr_lags_pos[i*n_events+j], xcorr_vals_neg[i*n_events+j], xcorr_lags_neg[i*n_events+j], fftsize);
-        xcorr_vals_pos[i*n_events+j] /= (norms[i]*norms[j]);
-        xcorr_vals_neg[i*n_events+j] /= (norms[i]*norms[j]);
+          //IMPLEMENTAR LA FFT INVERSA QUE SE APLICA DE UNO EN UNO --> MEMORY BOUND
+          //printf("Thread %d - Entro en la inversa\n", tid);
+          inverseFFT(xcorrij_f, event_length, shift, fftsize, xcorr_vals_pos[i*n_events+j], xcorr_lags_pos[i*n_events+j],
+                                           xcorr_vals_neg[i*n_events+j], xcorr_lags_neg[i*n_events+j]);
+          //printf("Thread %d - Salgo en la inversa\n", tid);
+          //sweep(xcorrij_t, xcorr_vals_pos[i*n_events+j], xcorr_lags_pos[i*n_events+j], xcorr_vals_neg[i*n_events+j], xcorr_lags_neg[i*n_events+j], fftsize);
+          xcorr_vals_pos[i*n_events+j] /= (norms[i]*norms[j]);
+          xcorr_vals_neg[i*n_events+j] /= (norms[i]*norms[j]);
+          //printf("Thread %d - Establezco los valores\n", tid);
+        }
       }
+      //fftw_free(xcorrij_f);
     }
 
+    printf("C: He terminado de computar el bucle\n");
+
     fftw_cleanup();
-    fftw_free(xcorrij_f);
+    //fftw_free(xcorrij_f);
+
   }
 }
 

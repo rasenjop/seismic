@@ -24,47 +24,46 @@ def initialize_library():
         sys.exit(1)
     return library
 
-def compute_correlation(events, shift):
+def compute_correlation(events, shift, num_threads):
     library = initialize_library()
     max = 0
     n_events = events.shape[0]
-    #n_events = 4
     for i in range(n_events):
         #if(events[0].shape[0] > max):
         #    max = events[0].shape[0]
         if(events[0].data.shape[0] > max):
             max = events[0].data.shape[0]
-    
+
     max_pad = 1 << (2*max+1).bit_length()
-    
+
     padded_events = np.ascontiguousarray(np.zeros((n_events,max_pad,2),dtype=np.float64),
                                          dtype=np.float64)
     padded_reversed_events = np.ascontiguousarray(np.zeros((n_events,max_pad,2),dtype=np.float64),
                                          dtype=np.float64)
-    
+
     #So far we have two all-zero matrices that has to be filled with the signals
     for i in range(n_events):
         padded_events[i,:,0] = np.pad(events[i].data, (0,max_pad-events[i].data.shape[0]),'constant')
-        padded_reversed_events[i,:,0] = np.pad(np.flip(events[i].data), 
+        padded_reversed_events[i,:,0] = np.pad(np.flip(events[i].data,0),
                                         (0,max_pad-events[i].data.shape[0]), 'constant')
         #padded_events[i,:,0] = np.pad(events[i], (0,max_pad-events[i].shape[0]),'constant')
-        #padded_reversed_events[i,:,0] = np.pad(np.flip(events[i]), 
+        #padded_reversed_events[i,:,0] = np.pad(np.flip(events[i]),
         #                                (0,max_pad-events[i].shape[0]), 'constant')
-    
-        
+
+
     xcm_pos = np.zeros((n_events, n_events), dtype=np.float64)
     xclags_pos = np.zeros((n_events, n_events), dtype=np.int32)
     xcm_neg = np.zeros((n_events, n_events), dtype=np.float64)
     xclags_neg = np.zeros((n_events, n_events), dtype=np.int32)
-    
-    
+
+
     c_int_p = ctypes.POINTER(ctypes.c_int)
     c_double_p = ctypes.POINTER(ctypes.c_double)
     library.correlationCPP.restype = None
     library.correlationCPP.argtypes = [c_double_p, c_double_p, ctypes.c_int, ctypes.c_int,
-                                       ctypes.c_int, ctypes.c_int, c_double_p, c_int_p, 
+                                       ctypes.c_int, ctypes.c_int, ctypes.c_int, c_double_p, c_int_p,
                                        c_double_p, c_int_p]
-    
+
     print("Python: About to enter the C-function")
     library.correlationCPP(padded_events.ctypes.data_as(c_double_p),
                            padded_reversed_events.ctypes.data_as(c_double_p),
@@ -72,6 +71,7 @@ def compute_correlation(events, shift):
                            ctypes.c_int(max),
                            ctypes.c_int(shift),
                            ctypes.c_int(max_pad),
+                           ctypes.c_int(num_threads),
                            xcm_pos.ctypes.data_as(c_double_p),
                            xclags_pos.ctypes.data_as(c_int_p),
                            xcm_neg.ctypes.data_as(c_double_p),
