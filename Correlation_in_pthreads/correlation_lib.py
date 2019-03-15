@@ -14,17 +14,17 @@ import numpy as np
 def initialize_library():
     try:
         if platform.system() == 'Darwin':
-            library = ctypes.CDLL('correlation_c.dylib')
+            library = ctypes.CDLL('correlation_pthreads.dylib')
         elif platform.system() == 'Windows':
-            library = ctypes.CDLL('correlation_c.dll')
+            library = ctypes.CDLL('correlation_pthreads.dll')
         elif platform.system() == 'Linux':
-            library = ctypes.CDLL('correlation_c.so')
+            library = ctypes.CDLL('correlation_pthreads.so')
     except:
         logging.error("Something bad is happening..")
         sys.exit(1)
     return library
 
-def compute_correlation(events, shift):
+def compute_correlation(events, shift, num_threads):
     library = initialize_library()
     max = 0
     n_events = events.shape[0]
@@ -60,18 +60,19 @@ def compute_correlation(events, shift):
 
     c_int_p = ctypes.POINTER(ctypes.c_int)
     c_double_p = ctypes.POINTER(ctypes.c_double)
-    library.correlationCPP.restype = None
-    library.correlationCPP.argtypes = [c_double_p, c_double_p, ctypes.c_int, ctypes.c_int,
-                                       ctypes.c_int, ctypes.c_int, c_double_p, c_int_p,
-                                       c_double_p, c_int_p]
+    library.correlationTH.restype = None
+    library.correlationTH.argtypes = [c_double_p, c_double_p, ctypes.c_int, ctypes.c_int,
+                                       ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                       c_double_p, c_int_p, c_double_p, c_int_p]
 
     print("Python: About to enter the C-function")
-    library.correlationCPP(padded_events.ctypes.data_as(c_double_p),
+    library.correlationTH(padded_events.ctypes.data_as(c_double_p),
                            padded_reversed_events.ctypes.data_as(c_double_p),
                            ctypes.c_int(n_events),
                            ctypes.c_int(max),
                            ctypes.c_int(shift),
                            ctypes.c_int(max_pad),
+                           ctypes.c_int(num_threads),
                            xcm_pos.ctypes.data_as(c_double_p),
                            xclags_pos.ctypes.data_as(c_int_p),
                            xcm_neg.ctypes.data_as(c_double_p),

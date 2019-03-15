@@ -2,6 +2,7 @@
 #include <iostream>
 #include <arrayfire.h>
 #include <time.h>
+#include <stdio.h>
 
 af::array matrixNorm(af::array x, int axis){
   if(axis == 0){
@@ -14,52 +15,77 @@ af::array matrixNorm(af::array x, int axis){
 
 extern "C"{
 
-  void correlationAF(af::array tss, int shift, af::array &xcorr_vals_pos,
-                    af::array &xcorr_lags_pos, af::array &xcorr_vals_neg,
-                    af::array &xcorr_lags_neg){
+  void toDim4(const unsigned ndims, const dim_t *const dims, af::dim4 d4) {
+    af::dim4 d(1, 1, 1, 1);
+
+    for (unsigned i = 0; i < ndims; i++) {
+        d[i] = dims[i];
+    }
+    d4=d;
+  }
+
+  void correlationAF(double *events, int n_events, int event_length,
+                     int shift, /*int fftsize,*/ double *xcorr_vals_pos, int *xcorr_lags_pos,
+                     double *xcorr_vals_neg, int *xcorr_lags_neg){
+
+    af::setBackend(AF_BACKEND_CPU);
     /**
      * events: signals in time with the same length
      * shift : size of the zone inside the temporal correlation that will be checked
      * the rest are output arrays with values and lags, respectively
      **/
-    //af_print(tss); //No consigue hacerlo. Los datos no se pasan bien de Python a C
+
     printf("C: Just entered the AF-function\n");
-    int length_event = static_cast<int>(tss.dims(0));
-    int n_events = static_cast<int>(tss.dims(1));
-    printf("C: There are %d signals and each one has %d elements\n", n_events, length_event);
+
+    af::array tss(event_length, n_events, events);
+
+    af::array af_xcorr_lags_pos, af_xcorr_lags_neg, af_xcorr_vals_pos, af_xcorr_vals_neg;
+
+
+    printf("C: Created the AF-array!\n");
+    af_print(tss);
+    printf("C: Printed the values received properly\n");
+
+    printf("C: There are %d signals and each one has %d elements\n", n_events, event_length);
 
     af::array norms = af::matmul(matrixNorm(tss, 0).T(), matrixNorm(tss, 0));
-    //af_print(norms);
     printf("C: Finished computing the norms\n");
 
     af::array conv = af::constant(0, tss.dims(1), tss.dims(1), 2*tss.dims(0)-1, tss.type());
     af::array tss_flipped = af::flip(tss, 0);
 
+    af::array prueba = af::convolve(tss(af::span, 1), tss_flipped(af::span, 2, 0),
+                                  AF_CONV_EXPAND, AF_CONV_FREQ);
+    af_print(prueba);
+
     for(int row=0; row<n_events; row++){
       printf("Row: %d\n", row);
-      for(int column=row; column<n_events; column++){
-      /*gfor(af::seq column, row, n_events-1){*/
+      //for(int column=row; column<n_events; column++){
+      gfor(af::seq column, row, n_events-1){
         conv(row, column, af::span) = af::convolve(tss(af::span, row), tss_flipped(af::span, column
                                       /*af::flip(tss(af::span, column)*/, 0), AF_CONV_EXPAND, AF_CONV_FREQ);
       }
     }
     //af_print(conv);
-    printf("I have finished the computation\n");
+    printf("C: I have finished the computation\n");
 
-    af::max(xcorr_vals_pos, xcorr_lags_pos, conv, 2);
-    af::min(xcorr_vals_neg, xcorr_lags_neg, conv, 2);
-    xcorr_vals_pos = xcorr_vals_pos / norms;
-    xcorr_vals_neg = xcorr_vals_neg / norms;
-    xcorr_lags_pos = af::upper(xcorr_lags_pos.as(af::dtype::s32)  - length_event + 1);
-    xcorr_lags_neg = af::upper(xcorr_lags_neg.as(af::dtype::s32)  - length_event + 1);
-    //TODO : incluir el shift
+    //af_print(conv.slices(event_length-1-shift, event_length-1+shift));
 
 
-    /*af_print(xcorr_vals_pos);
-    af_print(xcorr_vals_neg);
-    af_print(xcorr_lags_pos);
-    af_print(xcorr_lags_neg);*/
+    af::max(af_xcorr_vals_pos, af_xcorr_lags_pos, conv.slices(event_length - 1 - shift,
+                                                  event_length - 1 + shift), 2);
+    af::min(af_xcorr_vals_neg, af_xcorr_lags_neg, conv.slices(event_length - 1 - shift,
+                                                  event_length - 1 + shift), 2);
 
+    af_xcorr_vals_pos = af_xcorr_vals_pos / norms;
+    af_xcorr_vals_neg = af_xcorr_vals_neg / norms;
+    af_xcorr_lags_pos = af::upper(af_xcorr_lags_pos.as(af::dtype::s32) - shift);
+    af_xcorr_lags_neg = af::upper(af_xcorr_lags_neg.as(af::dtype::s32) - shift);
+
+    af_xcorr_vals_pos.T().host(xcorr_vals_pos);
+    af_xcorr_vals_neg.T().host(xcorr_vals_neg);
+    af_xcorr_lags_pos.T().host(xcorr_lags_pos);
+    af_xcorr_lags_neg.T().host(xcorr_lags_neg);
   }
 }
 
@@ -106,7 +132,7 @@ int main(int argc, char * argv[]){
   double cpu_time_used;
   start = clock();
 
-	correlationAF(a, 1, xcorr_vals_pos, xcorr_lags_pos, xcorr_vals_neg, xcorr_lags_neg);
+	//correlationAF(a, 1, xcorr_vals_pos, xcorr_lags_pos, xcorr_vals_neg, xcorr_lags_neg);
 
   end = clock();
   printf("CPU USED TIME: %f\n", ((double)(end-start))/CLOCKS_PER_SEC);
