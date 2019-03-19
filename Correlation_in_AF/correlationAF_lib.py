@@ -32,16 +32,16 @@ def compute_correlation_AF(events, shift):
     max = 0
     #n_events = events.shape[0]
     n_events = events.shape[0]
+    #n_events = 10
     for i in range(n_events):
-        if(events[0].shape[0] > max):
-            max = events[0].shape[0]
-        # if(events[0].data.shape[0] > max):
-        #     max = events[0].data.shape[0]
+        #if(events[0].shape[0] > max):
+        #    max = events[0].shape[0]
+        if(events[0].data.shape[0] > max):
+            max = events[0].data.shape[0]
 
     # max_pad = 1 << (2*max+1).bit_length()
-
-    padded_events = np.ascontiguousarray(np.zeros((n_events,max),dtype=np.float64),
-                                         dtype=np.float64)
+    padded_events = np.ascontiguousarray(np.zeros((n_events, max),dtype=np.float32),
+                                         dtype=np.float32)
     # padded_reversed_events = np.ascontiguousarray(np.zeros((n_events,max),dtype=np.float64),
     #                                      dtype=np.float64)
 
@@ -52,38 +52,39 @@ def compute_correlation_AF(events, shift):
         # padded_reversed_events[i,:] = np.pad(np.flip(events[i].data),
         #                                 (0,max_pad-events[i].data.shape[0]), 'constant')
 
-        # padded_events[i,:] = np.pad(events[i].data, (0,max-events[i].data.shape[0]),'constant')
+        padded_events[i,:] = np.pad(events[i].data, (0,max-events[i].data.shape[0]),'constant').astype(float)
         # padded_reversed_events[i,:] = np.pad(np.flip(events[i].data),
         #                                 (0,max-events[i].data.shape[0]), 'constant')
 
-        padded_events[i,:] = np.pad(events[i], (0,max-events[i].shape[0]),'constant')
+        #padded_events[i,:] = np.pad(events[i], (0,max-events[i].shape[0]),'constant')
         # padded_reversed_events[i,:] = np.pad(np.flip(events[i]),
         #                                 (0,max-events[i].shape[0]), 'constant')
 
 
-    xcm_pos = np.zeros((n_events, n_events), dtype=np.float64)
-    xclags_pos = np.zeros((n_events, n_events), dtype=np.int32)
-    xcm_neg = np.zeros((n_events, n_events), dtype=np.float64)
+    xcm_pos = np.zeros((n_events, n_events), dtype=np.float32)
+    xclags_pos = np.zeros((n_events,n_events), dtype=np.int32)
+    xcm_neg = np.zeros((n_events, n_events), dtype=np.float32)
     xclags_neg = np.zeros((n_events, n_events), dtype=np.int32)
 
 
     c_int_p = ctypes.POINTER(ctypes.c_int)
     c_double_p = ctypes.POINTER(ctypes.c_double)
+    c_float_p = ctypes.POINTER(ctypes.c_float)
     library.correlationAF.restype = None
-    library.correlationAF.argtypes = [c_double_p, ctypes.c_int, ctypes.c_int,
+    library.correlationAF.argtypes = [c_float_p, ctypes.c_int, ctypes.c_int,
                                        ctypes.c_int, #ctypes.c_int,
-                                       c_double_p, c_int_p,
-                                       c_double_p, c_int_p]
+                                       c_float_p, c_int_p,
+                                       c_float_p, c_int_p]
 
     print("Python: About to enter the C-function")
-    library.correlationAF(padded_events.ctypes.data_as(c_double_p),
+    library.correlationAF(padded_events.ctypes.data_as(c_float_p),
                            ctypes.c_int(n_events),
                            ctypes.c_int(max),
                            ctypes.c_int(shift),
                            #ctypes.c_int(max_pad),
-                           xcm_pos.ctypes.data_as(c_double_p),
+                           xcm_pos.ctypes.data_as(c_float_p),
                            xclags_pos.ctypes.data_as(c_int_p),
-                           xcm_neg.ctypes.data_as(c_double_p),
+                           xcm_neg.ctypes.data_as(c_float_p),
                            xclags_neg.ctypes.data_as(c_int_p))
     print("Python: Coming out of the C-function\n")
 

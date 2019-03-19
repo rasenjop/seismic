@@ -28,6 +28,7 @@ def compute_correlation(events, shift, num_threads):
     library = initialize_library()
     max = 0
     n_events = events.shape[0]
+    n_events = 200
     for i in range(n_events):
         #if(events[0].shape[0] > max):
         #    max = events[0].shape[0]

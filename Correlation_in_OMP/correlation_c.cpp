@@ -239,8 +239,8 @@ extern "C"{
       fftw_complex* xcorrij_f = (fftw_complex*)fftw_malloc(sizeof(fftw_complex)*fftsize);
       //printf("\tSoy un thread\n");
       //#pragma omp for //default(shared) private(xcorrij_f)
-      #pragma omp for schedule(dynamic, 50)
-      for(int i=0; i<n_events; i++){
+      #pragma omp for schedule(guided, 20)
+      for(int i=n_events-1; i>=0; i--){
         //printf("Iteration %d of %d\n", i, n_events);
         for(int j=i; j<n_events; j++){ //tengo que mirar como hace scipy la correlacion
           //printf("Thread %d - iteration %d\n", tid, j);
