@@ -7,23 +7,25 @@ Created on Mon Dec 17 18:23:53 2018
 """
 
 import numpy as np
-
+import sys
 import time
 
 from correlation_lib import compute_correlation
 
 events = np.load('events_eruption_v8.npy',fix_imports=True, encoding='latin1')
 
-#events=np.ones((1000, 1500),dtype=np.float64)
+#events=np.ones((10, 15),dtype=np.float32)
 
 
 tiempos = np.zeros(1)
 
-num_threads = 4
+num_threads = int(sys.argv[1])
+chunk_size = int(sys.argv[2])
+print("The number of threads is: " + str(num_threads))
 
 for i in range(1):
 	start = time.time()
-	xcm_pos, xclags_pos, xcm_neg, xclags_neg = compute_correlation(events, 250, num_threads)
+	xcm_pos, xclags_pos, xcm_neg, xclags_neg = compute_correlation(events, 250, num_threads, chunk_size)
 	diff_time = time.time() - start
 	print("Execution finished in: " + str(diff_time))
 	tiempos[i] = diff_time
