@@ -28,24 +28,17 @@ extern "C"{
   void correlationAF(float *events, int n_events, int event_length,
                      int shift, /*int fftsize,*/ float *xcorr_vals_pos, int *xcorr_lags_pos,
                      float *xcorr_vals_neg, int *xcorr_lags_neg){
-
+    af::setBackend(AF_BACKEND_DEFAULT);
     std::cout << "Get available backends: " << af::getAvailableBackends() << std::endl;
     std::cout << "Get backend counts: " << af::getBackendCount() << std::endl;
     std::cout << "Get active backend: " << af::getActiveBackend() << std::endl;
     std::cout << "Get backend info: " << af::infoString() << std::endl;
-    af::setBackend(AF_BACKEND_DEFAULT);
-    //af::setBackend(AF_BACKEND_CPU);
-    /**
-     * events: signals in time with the same length
-     * shift : size of the zone inside the temporal correlation that will be checked
-     * the rest are output arrays with values and lags, respectively
-     **/
+
 
     printf("C: Just entered the AF-function\n");
 
     af::array tss(event_length, n_events, events);
 
-   // af::array af_xcorr_lags_pos, af_xcorr_lags_neg, af_xcorr_vals_pos, af_xcorr_vals_neg;
     af::array af_xcorr_vals_pos = af::constant(0, tss.dims(1), tss.dims(1), af::dtype::f32);
     af::array af_xcorr_vals_neg = af::constant(0, tss.dims(1), tss.dims(1), af::dtype::f32);
     af::array af_xcorr_lags_pos = af::constant(0, tss.dims(1), tss.dims(1), af::dtype::s32);
@@ -60,7 +53,7 @@ extern "C"{
     af::array norms = af::matmul(matrixNorm(tss, 0).T(), matrixNorm(tss, 0));
     printf("C: Finished computing the norms\n");
 
-    af::array conv = af::constant(0,tss.dims(0), tss.dims(1), tss.type());
+    af::array conv = af::constant(0, tss.dims(0), tss.dims(1), tss.type());
     af::array tss_flipped = af::flip(tss, 0);
 
     af::array index;
@@ -69,21 +62,13 @@ extern "C"{
     af::array kk;
 
     for(int row=0; row<n_events; row++){
-      //printf("Row: %d\n", row);
-      //auto time1=std::chrono::high_resolution_clock::now();
       //for(int column=row; column<n_events; column++){
-
       conv = af::constant(0, tss.dims(0), tss.dims(1), tss.type());
 
       gfor(af::seq column, row, n_events-1){
         conv(af::span, column) = af::convolve(tss(af::span, row), tss_flipped(af::span, column
                                     /*af::flip(tss(af::span, column)*/, 0), AF_CONV_DEFAULT, AF_CONV_FREQ);
       }
-      //auto time2=std::chrono::high_resolution_clock::now();
-      //std::cout << "Tiempo conv: " << std::chrono::duration<double,std::milli>(time2-time1).count() << std::endl;
-      
-      //af::printMemInfo();
-      //printf("SHITE!\n");
 
       af::max(k, kk, conv.rows(event_length/2 - shift, event_length/2 + shift), 0);
       af_xcorr_vals_pos(row, af::span) = k;
@@ -91,26 +76,16 @@ extern "C"{
       af::min(k, kk, conv.rows(event_length/2 - shift, event_length/2 + shift), 0);
       af_xcorr_vals_neg(row, af::span) = k;
       af_xcorr_lags_neg(row, af::span) = kk;
-
-      //auto time3=std::chrono::high_resolution_clock::now();
-      //std::cout << "Tiempo max-min: " << std::chrono::duration<double,std::milli>(time3-time2).count() << std::endl;
-      //(af::free(conv);
-      //af::printMemInfo();
-      
     }
+
     af_xcorr_vals_pos = af_xcorr_vals_pos / norms;
     af_xcorr_vals_neg = af_xcorr_vals_neg / norms;
     af_xcorr_lags_pos = af::upper(af_xcorr_lags_pos.as(af::dtype::s32) - shift);
     af_xcorr_lags_neg = af::upper(af_xcorr_lags_neg.as(af::dtype::s32) - shift);
- 
+
     af_xcorr_vals_pos.T().host(xcorr_vals_pos);
     af_xcorr_vals_neg.T().host(xcorr_vals_neg);
     af_xcorr_lags_pos.T().host(xcorr_lags_pos);
     af_xcorr_lags_neg.T().host(xcorr_lags_neg);
   }
 }
-
-
-
-
-

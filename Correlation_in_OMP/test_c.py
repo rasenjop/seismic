@@ -14,7 +14,8 @@ from correlation_lib import compute_correlation
 
 events = np.load('events_eruption_v8.npy',fix_imports=True, encoding='latin1')
 
-#events=np.ones((10, 15),dtype=np.float32)
+#events=np.rand((4, 11),dtype=np.float32)
+#events=np.random.rand(4, 10)
 
 
 tiempos = np.zeros(1)

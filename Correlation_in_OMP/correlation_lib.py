@@ -31,35 +31,34 @@ def compute_correlation(events, shift, num_threads, chunk_size):
     library = initialize_library()
     max = 0
     n_events = events.shape[0]
-    #n_events = 500
+    #n_events = 2000
     for i in range(n_events):
         #if(events[0].shape[0] > max):
         #    max = events[0].shape[0]
         if(events[0].data.shape[0] > max):
             max = events[0].data.shape[0]
 
-    max_pad = 1 << (2*max+1).bit_length()
-
-    padded_events = np.ascontiguousarray(np.zeros((n_events,max_pad,2),dtype=np.float32),
+    #max_pad = 1 << max.bit_length()
+    max_pad = 1 << max.bit_length()
+    padded_events = np.ascontiguousarray(np.zeros((n_events,max_pad),dtype=np.float32),
                                          dtype=np.float32)
-    padded_reversed_events = np.ascontiguousarray(np.zeros((n_events,max_pad,2),dtype=np.float32),
+    padded_reversed_events = np.ascontiguousarray(np.zeros((n_events,max_pad),dtype=np.float32),
                                          dtype=np.float32)
 
     #So far we have two all-zero matrices that has to be filled with the signals
     for i in range(n_events):
-        padded_events[i,:,0] = np.pad(events[i].data, (0,max_pad-events[i].data.shape[0]),'constant').astype(float)
-        padded_reversed_events[i,:,0] = np.pad(np.flip(events[i].data,0),
+        padded_events[i,:] = np.pad(events[i].data, (0,max_pad-events[i].data.shape[0]),'constant').astype(float)
+        padded_reversed_events[i,:] = np.pad(np.flip(events[i].data,0),
                                         (0,max_pad-events[i].data.shape[0]), 'constant').astype(float)
-        #padded_events[i,:,0] = np.pad(events[i], (0,max_pad-events[i].shape[0]),'constant')
-        #padded_reversed_events[i,:,0] = np.pad(np.flip(events[i], 0),
-        #                                (0,max_pad-events[i].shape[0]), 'constant')
+        # padded_events[i,:] = np.pad(events[i], (0,max_pad-events[i].shape[0]),'constant')
+        # padded_reversed_events[i,:] = np.pad(np.flip(events[i], 0),
+        #                                 (0,max_pad-events[i].shape[0]), 'constant')
 
 
     xcm_pos = np.zeros((n_events, n_events), dtype=np.float32)
-    xclags_pos = np.zeros((n_events, n_events), dtype=np.int32)
+    xclags_pos = np.zeros((n_events, n_events), dtype=np.int16)
     xcm_neg = np.zeros((n_events, n_events), dtype=np.float32)
-    xclags_neg = np.zeros((n_events, n_events), dtype=np.int32)
-
+    xclags_neg = np.zeros((n_events, n_events), dtype=np.int16)
 
     c_int_p = ctypes.POINTER(ctypes.c_int)
     c_double_p = ctypes.POINTER(ctypes.c_double)
