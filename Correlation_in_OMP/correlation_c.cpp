@@ -30,19 +30,22 @@ float normalize(fftwf_complex* signal1_t, fftwf_complex* signal2_t, int event_le
 
 
 void ComputeFFT(float* signals_t, float* signals_t_reversed, fftwf_complex* signals_f, fftwf_complex* signals_f_reversed,
-                int n_signals, int paddedSize, int fftsize){
+                int n_signals, int paddedSize, int fftsize, int num_threads){
+  omp_set_num_threads(num_threads);
+  #pragma omp parallel default(shared)
+  {
+    fftwf_plan plan;
+    #pragma omp critical
+    plan = fftwf_plan_dft_r2c_1d(paddedSize, signals_t_reversed, signals_f_reversed, FFTW_MEASURE | FFTW_UNALIGNED);
+    // TODO: la primera señal reversed tiene sus elementos a cero. Investigar!
+    #pragma omp for schedule(static)
+    for(int i=0; i<n_signals; i++){
+      fftwf_execute_dft_r2c(plan, &signals_t[i*paddedSize], &signals_f[i*fftsize]);
 
-  fftwf_plan plan;
-  for(int i=0; i<n_signals; i++){
-    plan = fftwf_plan_dft_r2c_1d(paddedSize, &signals_t[i*paddedSize], &signals_f[i*fftsize], FFTW_ESTIMATE);
-    //p = fftwf_plan_dft_r2c_1d(N, in, out, FFTW_ESTIMATE);
-
-    fftwf_execute(plan);
-
-    plan = fftwf_plan_dft_r2c_1d(paddedSize, &signals_t_reversed[i*paddedSize], &signals_f_reversed[i*fftsize], FFTW_ESTIMATE);
-    fftwf_execute(plan);
+      fftwf_execute_dft_r2c(plan, &signals_t_reversed[i*paddedSize], &signals_f_reversed[i*fftsize]);
+    }
+    fftwf_destroy_plan(plan);
   }
-  fftwf_destroy_plan(plan);
 }
 
 
@@ -57,12 +60,8 @@ void inverseFFT(fftwf_complex *corr_f, float *corr_t, fftwf_plan plan, int event
                 int *priv_max_hist, int *priv_min_hist, int n_classes_hist, float delta_hist,
                 float &val_pos, int &lag_pos, float &val_neg, int &lag_neg){
 
-  // auto time1=std::chrono::high_resolution_clock::now();
   fftwf_execute(plan);
-  // auto time2=std::chrono::high_resolution_clock::now();
-  // std::cout << "Tiempo IFFT: " << std::chrono::duration<double,std::milli>(time2-time1).count() << std::endl;
 
-  // auto time3=std::chrono::high_resolution_clock::now();
   float pos=0.0, neg=0.0;
   int l_pos=0, l_neg=0;
 
@@ -106,7 +105,6 @@ void inverseFFT(fftwf_complex *corr_f, float *corr_t, fftwf_plan plan, int event
   }
 
   val_neg = neg / ((float) paddedSize * norm1 * norm2);
-  //priv_min_hist[int(-val_neg/delta_hist)]++;
   if(val_neg < -0.9999999) priv_min_hist[n_classes_hist-1]++; //TODO: never noone talked about it again
   else  priv_min_hist[int(-(val_neg)/delta_hist)]++;
   if(val_neg < -threshold){
@@ -116,10 +114,6 @@ void inverseFFT(fftwf_complex *corr_f, float *corr_t, fftwf_plan plan, int event
     val_neg = 0.0;
     lag_neg = 0;
   }
-
-
-  // auto time4=std::chrono::high_resolution_clock::now();
-  // std::cout << "Tiempo Search: " << std::chrono::duration<double,std::milli>(time4-time3).count() << std::endl;
 }
 
 void sweep(fftw_complex *xcorrij, float &val_pos, int &lag_pos, float &val_neg, int &lag_neg, int paddedSize){
@@ -197,13 +191,6 @@ extern "C"{
                       int shift, int paddedSize, int num_threads, int chunk_size, float threshold,
                       int n_classes_hist, float *xcorr_vals_pos, int *xcorr_lags_pos,
                       float *xcorr_vals_neg, int *xcorr_lags_neg, int *max_hist, int *min_hist){
-    /*
-    events:   conjunto de señales en el tiempo y con zero-appended
-    events_reversed: conjunto de señales en el tiempo reversed y zero-appended
-    n_events: len(events)    -- numero de series temporales en events
-    length_event:            -- tamaño de los datos de una serie temporal
-    shift:       int         -- 2*shift+1 será el tamaño de la correlacion resultante (con ind=0 en el punto central)
-    */
 
     printf("------------------Values received from Python------------------\n");
     printf("C: n_events: %d\n", n_events);
@@ -222,23 +209,10 @@ extern "C"{
     float norms[n_events];
     printf("C: Norms memory successfully allocated\n");
 
-
-
-    // auto time1 = std::chrono::high_resolution_clock::now();
-
     ComputeNorms(events, norms, n_events, event_length, paddedSize);
-
-    // auto time2=std::chrono::high_resolution_clock::now();
-    // std::cout << "Tiempo norms: " << std::chrono::duration<double,std::milli>(time2-time1).count() << std::endl;
     printf("C: Norms have been computed\n");
 
-
-    // auto time3=std::chrono::high_resolution_clock::now();
     ComputeFFT(events, events_reversed, signals_freq, signals_reversed_freq, n_events, paddedSize, fftsize);
-
-    // auto time4=std::chrono::high_resolution_clock::now();
-    // std::cout << "Tiempo FFTs: " << std::chrono::duration<double,std::milli>(time4-time3).count() << std::endl;
-
     printf("C: FFTs have been computed\n\n");
 
     printf("C: The number of threads is %d\n", num_threads);
@@ -249,40 +223,39 @@ extern "C"{
     #pragma omp parallel default(shared)
     {
       int base_index = 0;
+
       int* priv_max_hist = (int*) calloc (n_classes_hist, sizeof(int));
       int* priv_min_hist = (int*) calloc (n_classes_hist, sizeof(int));
+
       fftwf_complex* corr_f = (fftwf_complex*) fftwf_malloc (sizeof(fftwf_complex) * fftsize);
       float* corr_t = (float*) fftwf_malloc (sizeof(float) * paddedSize);
+
       fftwf_plan plan;
       #pragma omp critical
       plan = fftwf_plan_dft_c2r_1d(paddedSize, corr_f, corr_t, FFTW_MEASURE);
+
       #pragma omp for schedule(dynamic, chunk_size)
       for(int i=0; i<n_events; i++){
-        for(int j=0; j<n_events-i; j++){ //tengo que mirar como hace scipy la correlacion
-          // auto time5=std::chrono::high_resolution_clock::now();
+        for(int j=0; j<n_events-i; j++){
           base_index = i*n_events - i*(i-1)/2;
           ElementWiseMultiplication(&signals_freq[i*fftsize], &signals_reversed_freq[(i+j)*fftsize], corr_f, fftsize);
-          // auto time6=std::chrono::high_resolution_clock::now();
-          // std::cout << "Tiempo ElementWiseMult: " << std::chrono::duration<double,std::milli>(time6-time5).count() << std::endl;
 
-          // auto time7=std::chrono::high_resolution_clock::now();
           inverseFFT(corr_f, corr_t, plan, event_length, shift, paddedSize, norms[i], norms[i+j],
                      threshold, priv_max_hist, priv_min_hist, n_classes_hist, delta_hist,
                      xcorr_vals_pos[base_index + j], xcorr_lags_pos[base_index + j],
                      xcorr_vals_neg[base_index + j], xcorr_lags_neg[base_index + j]);
-          // auto time8=std::chrono::high_resolution_clock::now();
-          // std::cout << "Tiempo IFFT + Search: " << std::chrono::duration<double,std::milli>(time8-time7).count() << std::endl;
         }
       }
+
       #pragma omp critical
       for(int i = 0; i < n_classes_hist; i++){
         max_hist[i] += priv_max_hist[i];
         min_hist[i] += priv_min_hist[i];
       }
-      fftwf_free(corr_f);
-      //fftwf_free(corr_t);
-      fftwf_destroy_plan(plan);
 
+      fftwf_free(corr_f);
+      fftwf_free(corr_t);
+      fftwf_destroy_plan(plan);
     }
 
     printf("C: Finished computing the features!\n");
