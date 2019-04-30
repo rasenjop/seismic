@@ -212,7 +212,7 @@ extern "C"{
     ComputeNorms(events, norms, n_events, event_length, paddedSize);
     printf("C: Norms have been computed\n");
 
-    ComputeFFT(events, events_reversed, signals_freq, signals_reversed_freq, n_events, paddedSize, fftsize);
+    ComputeFFT(events, events_reversed, signals_freq, signals_reversed_freq, n_events, paddedSize, fftsize, num_threads);
     printf("C: FFTs have been computed\n\n");
 
     printf("C: The number of threads is %d\n", num_threads);
