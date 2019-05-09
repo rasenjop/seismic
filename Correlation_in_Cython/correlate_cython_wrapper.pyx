@@ -19,7 +19,7 @@ def XCM2_correlate_cython(events):
 
     #print n_events
 
-    cdef int n_events=100
+    cdef int n_events=1000
 
     xcorr_vals_pos = np.zeros((n_events,n_events))
 

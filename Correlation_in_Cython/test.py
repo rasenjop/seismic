@@ -9,7 +9,7 @@ import time
 
 from correlate_cython_wrapper import XCM2_correlate_cython
 
-events = load('events_eruption_v8.npy',fix_imports=True, encoding='latin1')
+events = load('../events_eruption_v8.npy',fix_imports=True, encoding='latin1')
 
 tiempos = np.zeros(1)
 
