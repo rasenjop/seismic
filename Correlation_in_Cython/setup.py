@@ -1,3 +1,8 @@
-from distutils.core import setup
+from distutils.core import setup, Extension
 from Cython.Build import cythonize
-setup(ext_modules=cythonize('correlate_cython_wrapper.pyx'))
+import numpy
+
+setup(
+    ext_modules=cythonize("correlate_cython_wrapper.pyx"),
+    include_dirs=[numpy.get_include()]
+)
