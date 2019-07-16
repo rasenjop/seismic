@@ -58,9 +58,18 @@ void ComputeFFT(float* signals_t, float* signals_t_reversed, fftwf_complex* sign
 void inverseFFT(fftwf_complex *corr_f, float *corr_t, fftwf_plan plan, int event_length,
                 int shift, int paddedSize, float &norm1, float &norm2, float threshold,
                 int *priv_max_hist, int *priv_min_hist, int n_classes_hist, float delta_hist,
-                float &val_pos, int &lag_pos, float &val_neg, int &lag_neg){
+                float &val_pos, int &lag_pos, float &val_neg, int &lag_neg, int j){
 
   fftwf_execute(plan);
+
+  // printf("SIGNAL %d\n", j);
+  // if(j!=0){
+  //   for(int i=0; i<paddedSize; i++){
+  //     printf("corr_t(%d) = {%f}\n", i, corr_t[i]);
+  //   }
+  // }
+  // getchar();
+
 
   float pos=0.0, neg=0.0;
   int l_pos=0, l_neg=0;
@@ -68,32 +77,43 @@ void inverseFFT(fftwf_complex *corr_f, float *corr_t, fftwf_plan plan, int event
   // float av_max = 0.0; //máximo valor absoluto obtenido
 
 
-  for(int i = 0; i < shift; i++){
-    if(corr_t[i]>pos){
-      pos = corr_t[i];
+  // for(int i = 0; i < shift; i++){
+  //   if(corr_t[i]>pos){
+  //     pos = corr_t[i];
+  //     l_pos = i + 1;
+  //   }
+  //   else if(corr_t[i]<neg){
+  //     neg = corr_t[i];
+  //     l_neg = i + 1;
+  //   }
+  // }
+  //
+  // for(int i = event_length - shift; i <= event_length; i++){
+  //   if(corr_t[i] > pos){
+  //     pos = corr_t[i];
+  //     l_pos = i - event_length + 1;
+  //   }
+  //   else if(corr_t[i]<neg){
+  //     neg = corr_t[i];
+  //     l_neg = i - event_length + 1;
+  //   }
+  // }
+
+  for(int i = -shift; i < shift; i++){
+    if(corr_t[event_length + i]>pos){
+      pos = corr_t[event_length + i];
       l_pos = i + 1;
     }
-    else if(corr_t[i]<neg){
-      neg = corr_t[i];
+    else if(corr_t[event_length + i]<neg){
+      neg = corr_t[event_length + i];
       l_neg = i + 1;
-    }
-  }
-
-  for(int i = event_length - shift; i <= event_length; i++){
-    if(corr_t[i] > pos){
-      pos = corr_t[i];
-      l_pos = i - event_length + 1;
-    }
-    else if(corr_t[i]<neg){
-      neg = corr_t[i];
-      l_neg = i - event_length + 1;
     }
   }
 
 
   //av_max = (abs(pos)>abs(neg))? pos:abs(neg);
   val_pos = pos / ((float) paddedSize * norm1 * norm2);
-  if(val_pos > 0.9999999) priv_max_hist[n_classes_hist-1]++; //TODO: never noone talked about it again
+  if(val_pos >=1.0) priv_max_hist[n_classes_hist-1]++; //TODO: never noone talked about it again
   else  priv_max_hist[int((val_pos)/delta_hist)]++;
 
   if(val_pos > threshold){
@@ -105,7 +125,7 @@ void inverseFFT(fftwf_complex *corr_f, float *corr_t, fftwf_plan plan, int event
   }
 
   val_neg = neg / ((float) paddedSize * norm1 * norm2);
-  if(val_neg < -0.9999999) priv_min_hist[n_classes_hist-1]++; //TODO: never noone talked about it again
+  if(val_neg <= -1.0) priv_min_hist[n_classes_hist-1]++; //TODO: never noone talked about it again
   else  priv_min_hist[int(-(val_neg)/delta_hist)]++;
   if(val_neg < -threshold){
     lag_neg = l_neg;
@@ -215,6 +235,15 @@ extern "C"{
     ComputeFFT(events, events_reversed, signals_freq, signals_reversed_freq, n_events, paddedSize, fftsize, num_threads);
     printf("C: FFTs have been computed\n\n");
 
+    // for(int k=0; k<3; k++){
+    //   printf("SIGNAL %d\n", k);
+    //   for(int i=0; i<16; i++){
+    //     printf("events_freq(%d) = {%f, %f}\t", i, signals_freq[k * fftsize + i][0], signals_freq[k * fftsize + i][1]);
+    //     printf("events_reversed_freq(%d) = {%f, %f}", i, signals_reversed_freq[k * fftsize + i][0], signals_reversed_freq[k * fftsize + i][1]);
+    //     getchar();
+    //   }
+    // }
+
     printf("C: The number of threads is %d\n", num_threads);
     printf("C: The chunk_size is %d\n", chunk_size);
     printf("C: Feature extraction begins..\n");
@@ -239,11 +268,16 @@ extern "C"{
         for(int j=0; j<n_events-i; j++){
           base_index = i*n_events - i*(i-1)/2;
           ElementWiseMultiplication(&signals_freq[i*fftsize], &signals_reversed_freq[(i+j)*fftsize], corr_f, fftsize);
+          // printf("SIGNAL %d\n", j);
+          // for(int i=0; i<10; i++){
+          //   printf("corr_f(%d) = {%f, %f}", i, corr_f[i][0], corr_f[i][1]);
+          //   getchar();
+          // }
 
           inverseFFT(corr_f, corr_t, plan, event_length, shift, paddedSize, norms[i], norms[i+j],
                      threshold, priv_max_hist, priv_min_hist, n_classes_hist, delta_hist,
                      xcorr_vals_pos[base_index + j], xcorr_lags_pos[base_index + j],
-                     xcorr_vals_neg[base_index + j], xcorr_lags_neg[base_index + j]);
+                     xcorr_vals_neg[base_index + j], xcorr_lags_neg[base_index + j], j);
         }
       }
 
