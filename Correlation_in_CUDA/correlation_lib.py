@@ -33,7 +33,7 @@ def compute_correlation(events, shift, num_threads):
     library = initialise_library()
 
     n_events = events.shape[0]
-    #n_events = 12
+    # n_events = 12
 
     max = 0
     for i in range(n_events):

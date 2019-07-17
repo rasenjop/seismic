@@ -36,5 +36,6 @@
 
 # Result files
 *.txt
+*.npz
 !CMakeLists.txt
 
