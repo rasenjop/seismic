@@ -28,12 +28,12 @@ def initialise_library():
         sys.exit(1)
     return library
 
-def compute_correlation(events, shift, num_threads):
+def compute_correlation(events, shift, num_threads, threshold):
     start = time.time()
     library = initialise_library()
 
     n_events = events.shape[0]
-    # n_events = 12
+    # n_events = 5
 
     max = 0
     for i in range(n_events):
@@ -66,10 +66,10 @@ def compute_correlation(events, shift, num_threads):
 
 
     n_elements = int(n_events * (n_events+1) / 2)
-    xcm_pos = np.ascontiguousarray(np.zeros((n_events, n_events), dtype=np.float32), dtype=np.float32)
-    xclags_pos = np.ascontiguousarray(np.zeros((n_events, n_events), dtype=np.int32), dtype=np.int32)
-    xcm_neg = np.ascontiguousarray(np.zeros((n_events, n_events), dtype=np.float32), dtype=np.float32)
-    xclags_neg = np.ascontiguousarray(np.zeros((n_events, n_events), dtype=np.int32), dtype=np.int32)
+    xcm_pos = np.ascontiguousarray(np.zeros(n_elements, dtype=np.float32), dtype=np.float32)
+    xclags_pos = np.ascontiguousarray(np.zeros(n_elements, dtype=np.int32), dtype=np.int32)
+    xcm_neg = np.ascontiguousarray(np.zeros(n_elements, dtype=np.float32), dtype=np.float32)
+    xclags_neg = np.ascontiguousarray(np.zeros(n_elements, dtype=np.int32), dtype=np.int32)
 
     c_int_p = ctypes.POINTER(ctypes.c_int)
     c_double_p = ctypes.POINTER(ctypes.c_double)
@@ -77,7 +77,7 @@ def compute_correlation(events, shift, num_threads):
     library.correlationCUDA.restype = None
     library.correlationCUDA.argtypes = [c_float_p, c_float_p, ctypes.c_int, ctypes.c_int,
                                        ctypes.c_int, ctypes.c_int, ctypes.c_int,
-                                       c_float_p, c_int_p, c_float_p, c_int_p]
+                                       ctypes.c_float, c_float_p, c_int_p, c_float_p, c_int_p]
 
     diff_time = time.time() - start
     print("Time in correlation_lib.py before CUDA-function: " + str(diff_time))
@@ -90,6 +90,7 @@ def compute_correlation(events, shift, num_threads):
                            ctypes.c_int(shift),
                            ctypes.c_int(max_pad),
                            ctypes.c_int(num_threads),
+                           ctypes.c_float(threshold),
                            xcm_pos.ctypes.data_as(c_float_p),
                            xclags_pos.ctypes.data_as(c_int_p),
                            xcm_neg.ctypes.data_as(c_float_p),
