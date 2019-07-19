@@ -33,6 +33,8 @@
 
 # Data files
 *.npy
+__pycache__*
+.DS_Store*
 
 # Result files
 *.txt
