@@ -38,5 +38,6 @@ __pycache__*
 
 # Result files
 *.txt
+*.npz
 !CMakeLists.txt
 
