@@ -1,5 +1,5 @@
 # Seismic
-Seismic application Master's Thesis
+Seismic application Master's Thesis (Francisco López Sánchez, advisors: Dr. Thomas Grass, Prof. Dr. rer. nat. Rainer Leupers, and Prof. Rafael Asenjo)
 
 This repository contains different optimizations of a Python code ("original" directory) developed from Andrew Bell (School of GeoSciences at the University of Edinburgh). This application was intended to process data captured by sensors which recorded seismic activity on the Galapagos Islands.
 
